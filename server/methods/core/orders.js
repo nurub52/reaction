@@ -380,16 +380,7 @@ export const methods = {
     });
 
     // refund payment to customer
-    const paymentMethodId = paymentMethod && paymentMethod.paymentPackageId;
-    const paymentMethodName = paymentMethod && paymentMethod.paymentSettingsKey;
-    const getPaymentMethod = Packages.findOne({ _id: paymentMethodId });
-    const isRefundable = getPaymentMethod && getPaymentMethod.settings && getPaymentMethod.settings[paymentMethodName]
-      && getPaymentMethod.settings[paymentMethodName].support.includes("Refund");
-
-    if (isRefundable) {
-      Meteor.call("orders/refunds/create", order._id, paymentMethod, Number(invoiceTotal));
-    }
-
+    Meteor.call("orders/refunds/create", order._id, paymentMethod, Number(invoiceTotal));
 
     // send notification to user
     const prefix = Reaction.getShopPrefix();
@@ -596,6 +587,8 @@ export const methods = {
    * @return {Boolean} email sent or not
    */
   "orders/sendNotification": function (order, action) {
+    Logger.info(order);
+    Logger.info(action);
     check(order, Object);
     check(action, Match.OneOf(String, undefined));
 
@@ -624,7 +617,7 @@ export const methods = {
     let shippingCost = 0;
     let taxes = 0;
     let discounts = 0;
-    let amount = 0;
+    //let amount = 0;
     let address = {};
     let paymentMethod = {};
     let shippingAddress = {};
@@ -635,7 +628,7 @@ export const methods = {
       subtotal += Number.parseFloat(billingRecord.invoice.subtotal);
       taxes += Number.parseFloat(billingRecord.invoice.taxes);
       discounts += Number.parseFloat(billingRecord.invoice.discounts);
-      amount += billingRecord.paymentMethod.amount;
+      //amount += billingRecord.paymentMethod.amount;
       address = billingRecord.address;
       paymentMethod = billingRecord.paymentMethod;
     }
@@ -648,8 +641,8 @@ export const methods = {
     }
 
 
-    const refundResult = Meteor.call("orders/refunds/list", order);
-    const refundTotal = Array.isArray(refundResult) && refundResult.reduce((acc, refund) => acc + refund.amount, 0);
+    //const refundResult = Meteor.call("orders/refunds/list", order);
+    //const refundTotal = Array.isArray(refundResult) && refundResult.reduce((acc, refund) => acc + refund.amount, 0);
 
     // Get user currency formatting from shops collection, remove saved rate
     // using billing[0] here to get the currency and exchange rate used because
@@ -765,15 +758,15 @@ export const methods = {
           discounts: accounting.formatMoney(
             discounts * userCurrencyExchangeRate, userCurrencyFormatting
           ),
-          refunds: accounting.formatMoney(
-            refundTotal * userCurrencyExchangeRate, userCurrencyFormatting
-          ),
+          // refunds: accounting.formatMoney(
+          //   refundTotal * userCurrencyExchangeRate, userCurrencyFormatting
+          // ),
           total: accounting.formatMoney(
             (subtotal + shippingCost) * userCurrencyExchangeRate, userCurrencyFormatting
-          ),
-          adjustedTotal: accounting.formatMoney(
-            (amount - refundTotal) * userCurrencyExchangeRate, userCurrencyFormatting
           )
+          // adjustedTotal: accounting.formatMoney(
+          //   (amount - refundTotal) * userCurrencyExchangeRate, userCurrencyFormatting
+          // )
         },
         combinedItems: combinedItems,
         orderDate: moment(order.createdAt).format("MM/DD/YYYY"),
@@ -789,6 +782,8 @@ export const methods = {
           }
         }
       };
+
+      Logger.info(`orders/sendNotification status: ${order.workflow.status}`);
 
       Logger.debug(`orders/sendNotification status: ${order.workflow.status}`);
 
@@ -1031,7 +1026,7 @@ export const methods = {
    * @param {Object} order - order object
    * @return {Array} Array contains refund records
    */
-  "orders/refunds/list": function (order) {
+  "/refunds/orderslist": function (order) {
     check(order, Object);
 
     if (!this.userId === order.userId && !Reaction.hasPermission("orders")) {
@@ -1039,12 +1034,12 @@ export const methods = {
     }
 
     const refunds = [];
-    for (const billingRecord of order.billing) {
-      const paymentMethod = billingRecord.paymentMethod;
-      const processor = paymentMethod.processor.toLowerCase();
-      const shopRefunds = Meteor.call(`${processor}/refund/list`, paymentMethod);
-      refunds.push(...shopRefunds);
-    }
+    // for (const billingRecord of order.billing) {
+    //   const paymentMethod = billingRecord.paymentMethod;
+    //   const processor = paymentMethod.processor.toLowerCase();
+    //   const shopRefunds = Meteor.call(`${processor}/refund/list`, paymentMethod);
+    //   refunds.push(...shopRefunds);
+    // }
     return refunds;
   },
 
@@ -1077,7 +1072,8 @@ export const methods = {
     const settingsKey = paymentMethod.paymentSettingsKey;
     // check if payment provider supports de-authorize
     const checkSupportedMethods = Packages.findOne({
-      _id: packageId
+      _id: packageId,
+      shopId: Reaction.getShopId()
     }).settings[settingsKey].support;
 
     const orderMode = paymentMethod.mode;
