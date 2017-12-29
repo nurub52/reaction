@@ -1,0 +1,16 @@
+FROM reactionbase
+
+
+ENV SSH_PASSWD "root:Docker!"
+RUN apt-get update \ 
+    && apt-get install -y --no-install-recommends openssh-server \
+    && echo "root:Docker!" | chpasswd \
+    # Copy the sshd_config file to its new location
+COPY sshd_config /etc/ssh/
+
+EXPOSE 2222 80
+
+# Start the SSH service
+RUN service ssh start
+
+
